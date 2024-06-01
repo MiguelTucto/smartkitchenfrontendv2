@@ -62,32 +62,32 @@ const Camera = () => {
                 <circle cx="${ringRadius}" cy="${ringRadius}" r="${ringRadius}" fill="rgba(255, 165, 0, 0.5)" mask="url(#mask-${index})" />
             `;
 
-            document.body.appendChild(svgContainer);
+            document.querySelector('.camera-container').appendChild(svgContainer);
 
             // Texto curvado alrededor del círculo
             const textPath = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
             textPath.setAttribute('class', 'detection-name');
             textPath.setAttribute('width', `${ringRadius * 2}`);
             textPath.setAttribute('height', `${ringRadius * 2}`);
-            textPath.setAttribute('style', `position: absolute; left: ${centerX - ringRadius}px; top: ${centerY - ringRadius}px;`);
+            textPath.setAttribute('style', `position: absolute; left: ${centerX - ringRadius}px; top: ${centerY - ringRadius - 5}px;`);
 
             textPath.innerHTML = `
                 <defs>
                     <path id="textPath-${index}" d="M ${ringRadius},${ringRadius} m -${radius},0 a ${radius},${radius} 0 1,1 ${radius * 2},0 a ${radius},${radius} 0 1,1 -${radius * 2},0" />
                 </defs>
                 <text fill="white" font-size="22" font-weight="bold">
-                    <textPath xlink:href="#textPath-${index}" startOffset="50%" text-anchor="middle">
+                    <textPath xlink:href="#textPath-${index}" startOffset="25%" text-anchor="middle">
                         ${detection.name}
                     </textPath>
                 </text>
             `;
-            document.body.appendChild(textPath);
+            document.querySelector('.camera-container').appendChild(textPath);
 
             // Información nutricional alrededor del círculo
             const nutritionInfo = [
-                { label: 'Unidades', value: '2', angle: -45 },
-                { label: 'Peso', value: '40g', angle: 0 },
-                { label: 'Calorías', value: '160', angle: 45 }
+                { label: 'Unidades', value: '2', angle: -50 },
+                { label: 'Peso', value: '40g', angle: -30 },
+                { label: 'Calorías', value: '160', angle: -10 }
             ];
 
             nutritionInfo.forEach(info => {
@@ -110,7 +110,7 @@ const Camera = () => {
                     <strong>${info.value}</strong><br>
                     ${info.label}
                 `;
-                document.body.appendChild(detectionInfo);
+                document.querySelector('.camera-container').appendChild(detectionInfo);
             });
 
             gsap.to(svgContainer, {
@@ -122,13 +122,14 @@ const Camera = () => {
     }, [detections]);
 
     return (
-        <div style={{ position: 'relative' }}>
+        <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height:'1400px' }}>
             <Webcam
                 audio={false}
                 ref={webcamRef}
+
                 screenshotFormat="image/jpeg"
                 videoConstraints={videoConstraints}
-                style={{ width: '100%', height: 'auto', position: 'absolute' }}
+                style={{ width: '100%', height: 'auto', position: 'relative' }}
             />
         </div>
     );
