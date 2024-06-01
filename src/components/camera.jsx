@@ -49,7 +49,7 @@ const Camera = () => {
             svgContainer.setAttribute('class', 'detection');
             svgContainer.setAttribute('width', `${ringRadius * 2}`);
             svgContainer.setAttribute('height', `${ringRadius * 2}`);
-            svgContainer.setAttribute('style', `position: absolute; left: ${centerX - ringRadius}px; top: ${centerY - ringRadius}px; pointer-events: none;`);
+            svgContainer.setAttribute('style', `position: absolute; left: ${centerX - ringRadius}px; top: ${centerY - ringRadius}px; pointer-events: none; z-index: 2;`);
 
             // Definir el clipPath para recortar el círculo interior
             svgContainer.innerHTML = `
@@ -69,7 +69,7 @@ const Camera = () => {
             textPath.setAttribute('class', 'detection-name');
             textPath.setAttribute('width', `${ringRadius * 2}`);
             textPath.setAttribute('height', `${ringRadius * 2}`);
-            textPath.setAttribute('style', `position: absolute; left: ${centerX - ringRadius}px; top: ${centerY - ringRadius - 5}px;`);
+            textPath.setAttribute('style', `position: absolute; left: ${centerX - ringRadius}px; top: ${centerY - ringRadius - 5}px; z-index: 2;`);
 
             textPath.innerHTML = `
                 <defs>
@@ -106,6 +106,7 @@ const Camera = () => {
                 detectionInfo.style.padding = '5px';
                 detectionInfo.style.borderRadius = '5px';
                 detectionInfo.style.whiteSpace = 'nowrap';
+                detectionInfo.style.zIndex = '2';
                 detectionInfo.innerHTML = `
                     <strong>${info.value}</strong><br>
                     ${info.label}
@@ -122,14 +123,15 @@ const Camera = () => {
     }, [detections]);
 
     return (
-        <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height:'1400px' }} className="camera-container">
+        <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height:'100vh' }} className="camera-container">
             <Webcam
                 audio={false}
                 ref={webcamRef}
                 screenshotFormat="image/jpeg"
                 videoConstraints={videoConstraints}
-                style={{ width: '100%', height: 'auto', position: 'absolute' }}
+                style={{ width: '100%', height: 'auto', position: 'absolute', zIndex: '1' }}
             />
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'white', zIndex: '1', opacity: '1' }}></div>
         </div>
     );
 };
