@@ -122,14 +122,13 @@ const Camera = () => {
     }, [detections]);
 
     return (
-        <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height:'1400px' }}>
+        <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height:'1400px' }} className="camera-container">
             <Webcam
                 audio={false}
                 ref={webcamRef}
-
                 screenshotFormat="image/jpeg"
                 videoConstraints={videoConstraints}
-                style={{ width: '100%', height: 'auto', position: 'relative' }}
+                style={{ width: '100%', height: 'auto', position: 'absolute' }}
             />
         </div>
     );
