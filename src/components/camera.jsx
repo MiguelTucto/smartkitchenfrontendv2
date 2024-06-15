@@ -6,7 +6,6 @@ import { gsap } from 'gsap';
 const Camera = () => {
     const webcamRef = useRef(null);
     const [detections, setDetections] = useState([]);
-    const [lastDetectionTime, setLastDetectionTime] = useState(Date.now());
     const videoConstraints = {
         width: 1280,
         height: 720,
@@ -14,26 +13,22 @@ const Camera = () => {
     };
 
     const capture = useCallback(() => {
-        const now = Date.now();
-        if (now - lastDetectionTime > 500) { // Limitamos la frecuencia a una vez cada 500ms
-            const imageSrc = webcamRef.current.getScreenshot();
-            if (imageSrc) {
-                axios.post('http://127.0.0.1:8000/api/detect/', { image: imageSrc.split(",")[1] })
-                    .then(response => {
-                        console.log("API Response:", response.data);
-                        setDetections(response.data);
-                        setLastDetectionTime(now);
-                    })
-                    .catch(error => {
-                        console.error("There was an error detecting objects:", error);
-                    });
-            }
+        const imageSrc = webcamRef.current.getScreenshot();
+        if (imageSrc) {
+            axios.post('http://127.0.0.1:8000/api/detect/', { image: imageSrc.split(",")[1] })
+                .then(response => {
+                    console.log("API Response:", response.data);
+                    setDetections(response.data);
+                })
+                .catch(error => {
+                    console.error("There was an error detecting objects:", error);
+                });
         }
-        requestAnimationFrame(capture);
-    }, [webcamRef, lastDetectionTime]);
+    }, [webcamRef]);
 
     useEffect(() => {
-        requestAnimationFrame(capture);
+        const interval = setInterval(capture, 1000);
+        return () => clearInterval(interval);
     }, [capture]);
 
     useEffect(() => {
