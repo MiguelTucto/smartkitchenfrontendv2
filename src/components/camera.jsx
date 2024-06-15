@@ -6,6 +6,7 @@ import { gsap } from 'gsap';
 const Camera = () => {
     const webcamRef = useRef(null);
     const [detections, setDetections] = useState([]);
+    const [lastDetectionTime, setLastDetectionTime] = useState(Date.now());
     const videoConstraints = {
         width: 1280,
         height: 720,
@@ -13,22 +14,26 @@ const Camera = () => {
     };
 
     const capture = useCallback(() => {
-        const imageSrc = webcamRef.current.getScreenshot();
-        if (imageSrc) {
-            axios.post('http://127.0.0.1:8000/api/detect/', { image: imageSrc.split(",")[1] })
-                .then(response => {
-                    console.log("API Response:", response.data);
-                    setDetections(response.data);
-                })
-                .catch(error => {
-                    console.error("There was an error detecting objects:", error);
-                });
+        const now = Date.now();
+        if (now - lastDetectionTime > 500) { // Limitamos la frecuencia a una vez cada 500ms
+            const imageSrc = webcamRef.current.getScreenshot();
+            if (imageSrc) {
+                axios.post('http://127.0.0.1:8000/api/detect/', { image: imageSrc.split(",")[1] })
+                    .then(response => {
+                        console.log("API Response:", response.data);
+                        setDetections(response.data);
+                        setLastDetectionTime(now);
+                    })
+                    .catch(error => {
+                        console.error("There was an error detecting objects:", error);
+                    });
+            }
         }
-    }, [webcamRef]);
+        requestAnimationFrame(capture);
+    }, [webcamRef, lastDetectionTime]);
 
     useEffect(() => {
-        const interval = setInterval(capture, 1000);
-        return () => clearInterval(interval);
+        requestAnimationFrame(capture);
     }, [capture]);
 
     useEffect(() => {
@@ -36,7 +41,7 @@ const Camera = () => {
         existingElements.forEach(element => element.remove());
 
         detections.forEach((detection, index) => {
-            const { x1, y1, x2, y2 } = detection.coordinates;
+            let { x1, y1, x2, y2 } = detection.coordinates;
             const centerX = (x1 + x2) / 2;
             const centerY = (y1 + y2) / 2;
             const width = x2 - x1;
