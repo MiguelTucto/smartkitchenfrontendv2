@@ -7,10 +7,11 @@ const Camera = () => {
     const webcamRef = useRef(null);
     const [detections, setDetections] = useState([]);
     const videoConstraints = {
-        width: 1280,
-        height: 720,
+        width: 640,
+        height: 480,
         facingMode: "user"
     };
+
 
     const capture = useCallback(() => {
         const imageSrc = webcamRef.current.getScreenshot();
@@ -27,7 +28,7 @@ const Camera = () => {
     }, [webcamRef]);
 
     useEffect(() => {
-        const interval = setInterval(capture, 1000);
+        const interval = setInterval(capture, 1000); // Capture every 1 second
         return () => clearInterval(interval);
     }, [capture]);
 
@@ -36,7 +37,7 @@ const Camera = () => {
         existingElements.forEach(element => element.remove());
 
         detections.forEach((detection, index) => {
-            let { x1, y1, x2, y2 } = detection.coordinates;
+            const { x1, y1, x2, y2 } = detection.coordinates;
             const centerX = (x1 + x2) / 2;
             const centerY = (y1 + y2) / 2;
             const width = x2 - x1;
@@ -53,14 +54,14 @@ const Camera = () => {
 
             // Definir el clipPath para recortar el círculo interior
             svgContainer.innerHTML = `
-                <defs>
-                    <mask id="mask-${index}">
-                        <rect x="0" y="0" width="${ringRadius * 2}" height="${ringRadius * 2}" fill="white"/>
-                        <circle cx="${ringRadius}" cy="${ringRadius}" r="${radius}" fill="black" />
-                    </mask>
-                </defs>
-                <circle cx="${ringRadius}" cy="${ringRadius}" r="${ringRadius}" fill="rgba(255, 165, 0, 0.5)" mask="url(#mask-${index})" />
-            `;
+            <defs>
+                <mask id="mask-${index}">
+                    <rect x="0" y="0" width="${ringRadius * 2}" height="${ringRadius * 2}" fill="white"/>
+                    <circle cx="${ringRadius}" cy="${ringRadius}" r="${radius}" fill="black" />
+                </mask>
+            </defs>
+            <circle cx="${ringRadius}" cy="${ringRadius}" r="${ringRadius}" fill="rgba(255, 165, 0, 0.5)" mask="url(#mask-${index})" />
+        `;
 
             document.querySelector('.camera-container').appendChild(svgContainer);
 
@@ -72,22 +73,22 @@ const Camera = () => {
             textPath.setAttribute('style', `position: absolute; left: ${centerX - ringRadius}px; top: ${centerY - ringRadius - 5}px; z-index: 2;`);
 
             textPath.innerHTML = `
-                <defs>
-                    <path id="textPath-${index}" d="M ${ringRadius},${ringRadius} m -${radius},0 a ${radius},${radius} 0 1,1 ${radius * 2},0 a ${radius},${radius} 0 1,1 -${radius * 2},0" />
-                </defs>
-                <text fill="white" font-size="22" font-weight="bold">
-                    <textPath xlink:href="#textPath-${index}" startOffset="25%" text-anchor="middle">
-                        ${detection.name}
-                    </textPath>
-                </text>
-            `;
+            <defs>
+                <path id="textPath-${index}" d="M ${ringRadius},${ringRadius} m -${radius},0 a ${radius},${radius} 0 1,1 ${radius * 2},0 a ${radius},${radius} 0 1,1 -${radius * 2},0" />
+            </defs>
+            <text fill="black" font-size="25" font-weight="bold">
+                <textPath xlink:href="#textPath-${index}" startOffset="15%" text-anchor="middle">
+                    ${detection.name}
+                </textPath>
+            </text>
+        `;
             document.querySelector('.camera-container').appendChild(textPath);
 
             // Información nutricional alrededor del círculo
             const nutritionInfo = [
-                { label: 'Unidades', value: '2', angle: -50 },
+                { label: 'Unidades', value: '2', angle: -70 },
                 { label: 'Peso', value: '40g', angle: -30 },
-                { label: 'Calorías', value: '160', angle: -10 }
+                { label: 'Calorías', value: '160', angle: 10 }
             ];
 
             nutritionInfo.forEach(info => {
@@ -103,14 +104,17 @@ const Camera = () => {
                 detectionInfo.style.transform = `translate(-50%, -50%)`;
                 detectionInfo.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
                 detectionInfo.style.color = 'white';
-                detectionInfo.style.padding = '5px';
+                detectionInfo.style.padding = '15px';
+                detectionInfo.style.fontSize = '20px';
+                detectionInfo.style.fontStyle = 'italic';
+                detectionInfo.style.fontWeight = 'bold';
                 detectionInfo.style.borderRadius = '5px';
                 detectionInfo.style.whiteSpace = 'nowrap';
                 detectionInfo.style.zIndex = '2';
                 detectionInfo.innerHTML = `
-                    <strong>${info.value}</strong><br>
-                    ${info.label}
-                `;
+                <strong>${info.value}</strong><br>
+                ${info.label}
+            `;
                 document.querySelector('.camera-container').appendChild(detectionInfo);
             });
 
@@ -131,7 +135,7 @@ const Camera = () => {
                 videoConstraints={videoConstraints}
                 style={{ width: '100%', height: 'auto', position: 'absolute', zIndex: '1' }}
             />
-            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'white', zIndex: '1', opacity: '1' }}></div>
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'white', zIndex: '1', opacity: '0.1' }}></div>
         </div>
     );
 };
