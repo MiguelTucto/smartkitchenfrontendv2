@@ -227,6 +227,8 @@ const Camera = () => {
         }
     }, []);
 
+
+
     return (
         <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height: '100vh' }} className="camera-container">
             <Webcam
