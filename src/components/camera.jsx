@@ -7,6 +7,9 @@ import { FaCheckCircle, FaSpinner } from 'react-icons/fa';
 
 const Camera = () => {
     const webcamRef = useRef(null);
+    const menuRef = useRef(null); // Referencia al menú
+    const spinnerRef = useRef(null); // Referencia al spinner
+    const recipeRef = useRef(null); // Referencia a la receta
     const [detections, setDetections] = useState([]);
     const [isDetectionActive, setIsDetectionActive] = useState(false);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -15,9 +18,10 @@ const Camera = () => {
     const [showPreparation, setShowPreparation] = useState(false); // Estado para mostrar la preparación
     const [loading, setLoading] = useState(false); // Estado para indicar carga
     const [loaded, setLoaded] = useState(false); // Estado para indicar que ha terminado de cargar
+    const [isRequestPending, setIsRequestPending] = useState(false); // Estado para controlar solicitudes pendientes
     const videoConstraints = {
-        width: 640,
-        height: 480,
+        width: 1280,
+        height: 720,
         facingMode: "user"
     };
 
@@ -46,21 +50,26 @@ const Camera = () => {
 
     const { transcript, resetTranscript } = useSpeechRecognition({ commands });
 
-    const capture = useCallback(() => {
-        if (!isDetectionActive) return;
+    const capture = useCallback(async () => {
+        if (!isDetectionActive || isRequestPending) return;
+
+        setIsRequestPending(true); // Establecer el estado de solicitud pendiente
 
         const imageSrc = webcamRef.current.getScreenshot();
         if (imageSrc) {
-            axios.post('http://127.0.0.1:8000/api/detect/', { image: imageSrc.split(",")[1] })
-                .then(response => {
-                    console.log("API Response:", response.data);
-                    setDetections(response.data);
-                })
-                .catch(error => {
-                    console.error("There was an error detecting objects:", error);
-                });
+            try {
+                const response = await axios.post('http://127.0.0.1:8000/api/detect/', { image: imageSrc.split(",")[1] });
+                console.log("API Response:", response.data);
+                setDetections(response.data);
+            } catch (error) {
+                console.error("There was an error detecting objects:", error);
+            } finally {
+                setIsRequestPending(false); // Restablecer el estado de solicitud pendiente
+            }
+        } else {
+            setIsRequestPending(false); // Restablecer el estado de solicitud pendiente si no hay imagen
         }
-    }, [webcamRef, isDetectionActive]);
+    }, [webcamRef, isDetectionActive, isRequestPending]);
 
     const fetchRecipes = async () => {
         setLoading(true);
@@ -99,6 +108,16 @@ const Camera = () => {
             }));
             setLoading(false);
             setLoaded(true);
+
+            // Animar la aparición de las recetas
+            setTimeout(() => {
+                gsap.fromTo(recipeRef.current, { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 1 });
+                gsap.to(recipeRef.current.querySelectorAll('p, h3'), {
+                    opacity: 1,
+                    duration: 1,
+                    stagger: 0.1
+                });
+            }, 100);
         } catch (error) {
             console.error("Error fetching recipes:", error);
             setRecipes([{ title: "Error", ingredients: "No se encontraron recetas o ocurrió un error.", preparation: "" }]);
@@ -163,7 +182,7 @@ const Camera = () => {
             textPath.setAttribute('class', 'detection-name');
             textPath.setAttribute('width', `${ringRadius * 2}`);
             textPath.setAttribute('height', `${ringRadius * 2}`);
-            textPath.setAttribute('style', `position: absolute; left: ${centerX - ringRadius}px; top: ${centerY - ringRadius - 5}px; z-index: 2;`);
+            textPath.setAttribute('style', `position: absolute; left: ${centerX - ringRadius}px; top: ${centerY - ringRadius - 5}px; z-index: '2'`);
 
             textPath.innerHTML = `
         <defs>
@@ -227,7 +246,34 @@ const Camera = () => {
         }
     }, []);
 
+    // Animar la aparición/desaparición del menú
+    useEffect(() => {
+        if (isMenuOpen) {
+            gsap.fromTo(menuRef.current, { x: '100%', opacity: 0 }, { x: '0%', opacity: 1, duration: 0.5 });
+        } else {
+            gsap.to(menuRef.current, { x: '100%', opacity: 0, duration: 0.5 });
+        }
+    }, [isMenuOpen]);
 
+    // Animar el spinner de carga
+    useEffect(() => {
+        if (loading) {
+            gsap.to(spinnerRef.current, { rotation: 360, duration: 1, repeat: -1, ease: 'linear' });
+        } else {
+            gsap.set(spinnerRef.current, { rotation: 0 });
+        }
+    }, [loading]);
+
+    useEffect(() => {
+        if (loaded) {
+            gsap.fromTo(recipeRef.current, { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 1 });
+            gsap.to(recipeRef.current.querySelectorAll('p, h3'), {
+                opacity: 1,
+                duration: 1,
+                stagger: 0.1
+            });
+        }
+    }, [loaded]);
 
     return (
         <div style={{ position: 'relative', overflow: 'hidden', width: '100%', height: '100vh' }} className="camera-container">
@@ -240,7 +286,7 @@ const Camera = () => {
             />
             <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'white', zIndex: '1', opacity: '0.1' }}></div>
             {isMenuOpen && (
-                <div style={menuStyle}>
+                <div ref={menuRef} style={menuStyle}>
                     <h2 style={menuTitleStyle}>Menú</h2>
                     <ul style={detectionListStyle}>
                         {detections.map((detection, index) => (
@@ -251,7 +297,7 @@ const Camera = () => {
                     </ul>
                     {loading && (
                         <div style={loadingStyle}>
-                            <FaSpinner style={{ marginRight: '10px' }} />
+                            <FaSpinner ref={spinnerRef} style={{ marginRight: '10px' }} />
                             Cargando...
                         </div>
                     )}
@@ -262,7 +308,7 @@ const Camera = () => {
                         </div>
                     )}
                     {recipes.length > 0 && (
-                        <div style={recipeContainerStyle}>
+                        <div ref={recipeRef} style={recipeContainerStyle}>
                             <h3 style={recipeTitleStyle}>{recipes[currentRecipeIndex].title}</h3>
                             <p><strong>Ingredientes:</strong> {recipes[currentRecipeIndex].ingredients}</p>
                             {showPreparation && (
@@ -295,7 +341,9 @@ const menuStyle = {
     borderRadius: '10px',
     zIndex: '3',
     boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)',
-    fontFamily: 'Arial, sans-serif'
+    fontFamily: 'Arial, sans-serif',
+    opacity: 0,
+    transform: 'translateX(100%)'
 };
 
 const menuTitleStyle = {
@@ -328,7 +376,8 @@ const recipeContainerStyle = {
     border: '1px solid #4CAF50',
     borderRadius: '10px',
     padding: '10px',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)'
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    opacity: 0 // Para inicializar la animación
 };
 
 const recipeTitleStyle = {
