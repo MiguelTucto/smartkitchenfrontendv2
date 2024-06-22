@@ -7,18 +7,22 @@ import { FaCheckCircle, FaSpinner } from 'react-icons/fa';
 
 const Camera = () => {
     const webcamRef = useRef(null);
-    const menuRef = useRef(null); // Referencia al menú
-    const spinnerRef = useRef(null); // Referencia al spinner
-    const recipeRef = useRef(null); // Referencia a la receta
+    const menuRef = useRef(null);
+    const spinnerRef = useRef(null);
+    const recipeRef = useRef(null);
     const [detections, setDetections] = useState([]);
     const [isDetectionActive, setIsDetectionActive] = useState(false);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const [recipes, setRecipes] = useState([]); // Estado para las recetas
-    const [currentRecipeIndex, setCurrentRecipeIndex] = useState(0); // Estado para la receta actual
-    const [showPreparation, setShowPreparation] = useState(false); // Estado para mostrar la preparación
-    const [loading, setLoading] = useState(false); // Estado para indicar carga
-    const [loaded, setLoaded] = useState(false); // Estado para indicar que ha terminado de cargar
-    const [isRequestPending, setIsRequestPending] = useState(false); // Estado para controlar solicitudes pendientes
+    const [recipes, setRecipes] = useState([]);
+    const [currentRecipeIndex, setCurrentRecipeIndex] = useState(0);
+    const [showPreparation, setShowPreparation] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [loaded, setLoaded] = useState(false);
+    const [isRequestPending, setIsRequestPending] = useState(false);
+    const [showNutrition, setShowNutrition] = useState(false);
+    const [nutritionInfo, setNutritionInfo] = useState({});
+    const [newInfoAvailable, setNewInfoAvailable] = useState(false);
+
     const videoConstraints = {
         width: 1280,
         height: 720,
@@ -28,7 +32,10 @@ const Camera = () => {
     const commands = [
         {
             command: 'Empieza la detección',
-            callback: () => setIsDetectionActive(true)
+            callback: () => {
+                setIsDetectionActive(true);
+                setIsMenuOpen(true);
+            }
         },
         {
             command: 'Detén la detección',
@@ -43,8 +50,14 @@ const Camera = () => {
             callback: () => setIsMenuOpen(false)
         },
         {
+            command: 'Mostrar información nutricional',
+            callback: () => fetchNutritionAndRecipes()
+        },
+        {
             command: 'Dame recetas',
-            callback: () => fetchRecipes()
+            callback: () => {
+                setLoaded(true);
+            }
         }
     ];
 
@@ -53,27 +66,36 @@ const Camera = () => {
     const capture = useCallback(async () => {
         if (!isDetectionActive || isRequestPending) return;
 
-        setIsRequestPending(true); // Establecer el estado de solicitud pendiente
+        setIsRequestPending(true);
 
         const imageSrc = webcamRef.current.getScreenshot();
         if (imageSrc) {
             try {
                 const response = await axios.post('http://127.0.0.1:8000/api/detect/', { image: imageSrc.split(",")[1] });
-                console.log("API Response:", response.data);
-                setDetections(response.data);
+                const newDetections = response.data.map(detection => {
+                    const existingDetection = detections.find(d => d.name === detection.name);
+                    return existingDetection ? { ...detection, nutrition: existingDetection.nutrition } : detection;
+                });
+
+                if (newDetections.length !== detections.length) {
+                    setNewInfoAvailable(true);
+                }
+
+                setDetections(newDetections);
             } catch (error) {
                 console.error("There was an error detecting objects:", error);
             } finally {
-                setIsRequestPending(false); // Restablecer el estado de solicitud pendiente
+                setIsRequestPending(false);
             }
         } else {
-            setIsRequestPending(false); // Restablecer el estado de solicitud pendiente si no hay imagen
+            setIsRequestPending(false);
         }
-    }, [webcamRef, isDetectionActive, isRequestPending]);
+    }, [webcamRef, isDetectionActive, isRequestPending, detections]);
 
-    const fetchRecipes = async () => {
+    const fetchNutritionAndRecipes = async () => {
         setLoading(true);
         setLoaded(false);
+        setNewInfoAvailable(false);
         const ingredients = detections.map(detection => detection.name).join(', ');
         try {
             const response = await axios.post('https://api.openai.com/v1/chat/completions', {
@@ -81,14 +103,45 @@ const Camera = () => {
                 messages: [
                     {
                         role: "system",
-                        content: "You are a helpful assistant that provides recipes in Spanish."
+                        content: "You are a helpful assistant that provides nutritional information and recipes in Spanish."
                     },
                     {
                         role: "user",
-                        content: `Dame tres recetas usando los siguientes ingredientes: ${ingredients}. La respuesta debe ser clara y estructurada de la siguiente manera: 'Receta {número}: Ingredientes: ... Preparación: ...' sin otro texto adicional.`
+                        content: `Dame la información nutricional (calorías, fibra, calcio) y tres recetas usando los siguientes ingredientes: ${ingredients}. La respuesta debe estar en formato JSON y estructurada de la siguiente manera:
+                        {
+                            "nutritional_info": {
+                                "ingrediente1": {
+                                    "calorias": "X kcal",
+                                    "fibra": "X g",
+                                    "calcio": "X mg"
+                                },
+                                "ingrediente2": {
+                                    "calorias": "X kcal",
+                                    "fibra": "X g",
+                                    "calcio": "X mg"
+                                }
+                            },
+                            "recipes": [
+                                {
+                                    "title": "Receta 1",
+                                    "ingredients": "ingrediente1, ingrediente2, ...",
+                                    "preparation": "preparación detallada"
+                                },
+                                {
+                                    "title": "Receta 2",
+                                    "ingredients": "ingrediente1, ingrediente2, ...",
+                                    "preparation": "preparación detallada"
+                                },
+                                {
+                                    "title": "Receta 3",
+                                    "ingredients": "ingrediente1, ingrediente2, ...",
+                                    "preparation": "preparación detallada"
+                                }
+                            ]
+                        }`
                     }
                 ],
-                max_tokens: 300
+                max_tokens: 1000
             }, {
                 headers: {
                     'Authorization': `Bearer sk-proj-84pMoEKyLGUUYiJowyMIT3BlbkFJxSKHli2e31THD9PdeTt7`,
@@ -96,31 +149,21 @@ const Camera = () => {
                 }
             });
 
-            const recipesText = response.data.choices[0].message.content.trim();
-            const recipesArray = recipesText.split(/Receta \d+:/).filter(recipe => recipe.trim() !== '');
-            setRecipes(recipesArray.map(recipe => {
-                const [ingredientsPart, preparationPart] = recipe.split('Preparación:');
-                return {
-                    title: `Receta ${recipesArray.indexOf(recipe) + 1}`,
-                    ingredients: ingredientsPart.replace('Ingredientes:', '').trim(),
-                    preparation: preparationPart?.trim() || ''
-                };
-            }));
-            setLoading(false);
-            setLoaded(true);
+            const responseData = JSON.parse(response.data.choices[0].message.content.trim());
+            const { nutritional_info, recipes } = responseData;
 
-            // Animar la aparición de las recetas
-            setTimeout(() => {
-                gsap.fromTo(recipeRef.current, { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 1 });
-                gsap.to(recipeRef.current.querySelectorAll('p, h3'), {
-                    opacity: 1,
-                    duration: 1,
-                    stagger: 0.1
-                });
-            }, 100);
+            const updatedDetections = detections.map(detection => ({
+                ...detection,
+                nutrition: nutritional_info[detection.name] || { calorias: 'No disponible', fibra: 'No disponible', calcio: 'No disponible' }
+            }));
+
+            setNutritionInfo(nutritional_info);
+            setDetections(updatedDetections);
+            setRecipes(recipes);
+            setShowNutrition(true);
+            setLoading(false);
         } catch (error) {
-            console.error("Error fetching recipes:", error);
-            setRecipes([{ title: "Error", ingredients: "No se encontraron recetas o ocurrió un error.", preparation: "" }]);
+            console.error("Error fetching nutrition information and recipes:", error);
             setLoading(false);
         }
     };
@@ -157,78 +200,77 @@ const Camera = () => {
             const radius = Math.max(width, height) / 2;
             const ringRadius = radius + 20;
 
-            // Crear un contenedor SVG para la detección
             const svgContainer = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
             svgContainer.setAttribute('class', 'detection');
             svgContainer.setAttribute('width', `${ringRadius * 2}`);
             svgContainer.setAttribute('height', `${ringRadius * 2}`);
             svgContainer.setAttribute('style', `position: absolute; left: ${centerX - ringRadius}px; top: ${centerY - ringRadius}px; pointer-events: none; z-index: 2;`);
 
-            // Definir el clipPath para recortar el círculo interior
             svgContainer.innerHTML = `
-        <defs>
-            <mask id="mask-${index}">
-                <rect x="0" y="0" width="${ringRadius * 2}" height="${ringRadius * 2}" fill="white"/>
-                <circle cx="${ringRadius}" cy="${ringRadius}" r="${radius}" fill="black" />
-            </mask>
-        </defs>
-        <circle cx="${ringRadius}" cy="${ringRadius}" r="${ringRadius}" fill="rgba(255, 165, 0, 0.5)" mask="url(#mask-${index})" />
-    `;
+            <defs>
+                <mask id="mask-${index}">
+                    <rect x="0" y="0" width="${ringRadius * 2}" height="${ringRadius * 2}" fill="white"/>
+                    <circle cx="${ringRadius}" cy="${ringRadius}" r="${radius}" fill="black" />
+                </mask>
+            </defs>
+            <circle cx="${ringRadius}" cy="${ringRadius}" r="${ringRadius}" fill="rgba(255, 165, 0, 0.5)" mask="url(#mask-${index})" />
+        `;
 
             document.querySelector('.camera-container').appendChild(svgContainer);
 
-            // Texto curvado alrededor del círculo
             const textPath = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
             textPath.setAttribute('class', 'detection-name');
             textPath.setAttribute('width', `${ringRadius * 2}`);
             textPath.setAttribute('height', `${ringRadius * 2}`);
-            textPath.setAttribute('style', `position: absolute; left: ${centerX - ringRadius}px; top: ${centerY - ringRadius - 5}px; z-index: '2'`);
+            textPath.setAttribute('style', `position: absolute; left: ${centerX - ringRadius}px; top: ${centerY - ringRadius - 5}px; pointer-events: none; z-index: 3;`);
 
             textPath.innerHTML = `
-        <defs>
-            <path id="textPath-${index}" d="M ${ringRadius},${ringRadius} m -${radius},0 a ${radius},${radius} 0 1,1 ${radius * 2},0 a ${radius},${radius} 0 1,1 -${radius * 2},0" />
-        </defs>
-        <text fill="black" font-size="25" font-weight="bold">
-            <textPath xlink:href="#textPath-${index}" startOffset="15%" text-anchor="middle">
-                ${detection.name}
-            </textPath>
-        </text>
-    `;
+            <defs>
+                <path id="textPath-${index}" d="M ${ringRadius},${ringRadius} m -${radius},0 a ${radius},${radius} 0 1,1 ${radius * 2},0 a ${radius},${radius} 0 1,1 -${radius * 2},0" />
+            </defs>
+            <text fill="black" font-size="25" font-weight="bold">
+                <textPath xlink:href="#textPath-${index}" startOffset="50%" text-anchor="middle">
+                    ${detection.name}
+                </textPath>
+            </text>
+        `;
             document.querySelector('.camera-container').appendChild(textPath);
 
-            // Información nutricional alrededor del círculo
-            const nutritionInfo = [
-                { label: 'Unidades', value: '2', angle: -70 },
-                { label: 'Peso', value: '40g', angle: -30 },
-                { label: 'Calorías', value: '160', angle: 10 }
-            ];
+            if (nutritionInfo[detection.name]) {
+                const nutritionData = nutritionInfo[detection.name];
+                const nutritionInfoElements = [
+                    { label: 'Calorías', value: nutritionData.calorias, angle: -45 },
+                    { label: 'Fibra', value: nutritionData.fibra, angle: 0 },
+                    { label: 'Calcio', value: nutritionData.calcio, angle: 45 }
+                ];
 
-            nutritionInfo.forEach(info => {
-                const angle = info.angle * (Math.PI / 180);
-                const infoX = centerX + (radius + 80) * Math.cos(angle); // Aumenta la distancia aquí
-                const infoY = centerY + (radius + 80) * Math.sin(angle); // Aumenta la distancia aquí
+                nutritionInfoElements.forEach(info => {
+                    const angle = info.angle * (Math.PI / 180);
+                    const infoX = centerX + (radius + 80) * Math.cos(angle);
+                    const infoY = centerY + (radius + 80) * Math.sin(angle);
 
-                const detectionInfo = document.createElement('div');
-                detectionInfo.className = 'detection-info';
-                detectionInfo.style.position = 'absolute';
-                detectionInfo.style.left = `${infoX}px`;
-                detectionInfo.style.top = `${infoY}px`;
-                detectionInfo.style.transform = `translate(-50%, -50%)`;
-                detectionInfo.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
-                detectionInfo.style.color = 'white';
-                detectionInfo.style.padding = '15px';
-                detectionInfo.style.fontSize = '20px';
-                detectionInfo.style.fontStyle = 'italic';
-                detectionInfo.style.fontWeight = 'bold';
-                detectionInfo.style.borderRadius = '5px';
-                detectionInfo.style.whiteSpace = 'nowrap';
-                detectionInfo.style.zIndex = '2';
-                detectionInfo.innerHTML = `
-            <strong>${info.value}</strong><br>
-            ${info.label}
-        `;
-                document.querySelector('.camera-container').appendChild(detectionInfo);
-            });
+                    const detectionInfo = document.createElement('div');
+                    detectionInfo.className = 'detection-info';
+                    detectionInfo.style.position = 'absolute';
+                    detectionInfo.style.left = `${infoX}px`;
+                    detectionInfo.style.top = `${infoY}px`;
+                    detectionInfo.style.transform = `translate(-50%, -50%)`;
+                    detectionInfo.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+                    detectionInfo.style.color = 'white';
+                    detectionInfo.style.padding = '5px';
+                    detectionInfo.style.fontSize = '12px';
+                    detectionInfo.style.fontStyle = 'italic';
+                    detectionInfo.style.fontWeight = 'bold';
+                    detectionInfo.style.borderRadius = '5px';
+                    detectionInfo.style.whiteSpace = 'nowrap';
+                    detectionInfo.style.zIndex = '2';
+                    detectionInfo.innerHTML = `
+                    <strong>${info.value}</strong><br>
+                    ${info.label}
+                `;
+                    document.querySelector('.camera-container').appendChild(detectionInfo);
+                });
+            }
 
             gsap.to(svgContainer, {
                 x: 0,
@@ -236,7 +278,7 @@ const Camera = () => {
                 duration: 0.5
             });
         });
-    }, [detections]);
+    }, [detections, nutritionInfo]);
 
     useEffect(() => {
         if (!SpeechRecognition.browserSupportsSpeechRecognition()) {
@@ -246,7 +288,6 @@ const Camera = () => {
         }
     }, []);
 
-    // Animar la aparición/desaparición del menú
     useEffect(() => {
         if (isMenuOpen) {
             gsap.fromTo(menuRef.current, { x: '100%', opacity: 0 }, { x: '0%', opacity: 1, duration: 0.5 });
@@ -255,7 +296,6 @@ const Camera = () => {
         }
     }, [isMenuOpen]);
 
-    // Animar el spinner de carga
     useEffect(() => {
         if (loading) {
             gsap.to(spinnerRef.current, { rotation: 360, duration: 1, repeat: -1, ease: 'linear' });
@@ -265,7 +305,7 @@ const Camera = () => {
     }, [loading]);
 
     useEffect(() => {
-        if (loaded) {
+        if (loaded && recipeRef.current) {
             gsap.fromTo(recipeRef.current, { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 1 });
             gsap.to(recipeRef.current.querySelectorAll('p, h3'), {
                 opacity: 1,
@@ -301,13 +341,19 @@ const Camera = () => {
                             Cargando...
                         </div>
                     )}
-                    {loaded && !loading && (
+                    {newInfoAvailable && (
                         <div style={loadingStyle}>
                             <FaCheckCircle style={{ marginRight: '10px' }} />
-                            Carga completa
+                            Hay nueva información disponible
                         </div>
                     )}
-                    {recipes.length > 0 && (
+                    {showNutrition && (
+                        <div style={loadingStyle}>
+                            <FaCheckCircle style={{ marginRight: '10px' }} />
+                            Información nutricional cargada
+                        </div>
+                    )}
+                    {loaded && (
                         <div ref={recipeRef} style={recipeContainerStyle}>
                             <h3 style={recipeTitleStyle}>{recipes[currentRecipeIndex].title}</h3>
                             <p><strong>Ingredientes:</strong> {recipes[currentRecipeIndex].ingredients}</p>
@@ -377,7 +423,7 @@ const recipeContainerStyle = {
     borderRadius: '10px',
     padding: '10px',
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    opacity: 0 // Para inicializar la animación
+    opacity: 0
 };
 
 const recipeTitleStyle = {
@@ -402,10 +448,6 @@ const buttonStyle = {
     cursor: 'pointer',
     fontSize: '16px',
     transition: 'background-color 0.3s',
-};
-
-buttonStyle[':hover'] = {
-    backgroundColor: '#45a049'
 };
 
 const loadingStyle = {
