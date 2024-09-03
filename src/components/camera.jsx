@@ -3,8 +3,8 @@ import Webcam from 'react-webcam';
 import axios from 'axios';
 import { gsap } from 'gsap';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
-import { FaCheckCircle, FaSpinner } from 'react-icons/fa';
-
+import {FaCheckCircle, FaHeart, FaSpinner} from 'react-icons/fa';
+import './camera.css'
 const Camera = () => {
     const webcamRef = useRef(null);
     const menuRef = useRef(null);
@@ -17,36 +17,38 @@ const Camera = () => {
     const [currentRecipeIndex, setCurrentRecipeIndex] = useState(0);
     const [showPreparation, setShowPreparation] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [userInfo, setUserInfo] = useState(null);
     const [loaded, setLoaded] = useState(false);
     const [isRequestPending, setIsRequestPending] = useState(false);
+    const [showUserModal, setShowUserModal] = useState(false);
     const [showNutrition, setShowNutrition] = useState(false);
+    const [name, setName] = useState('');
+    const [dob, setDob] = useState('');
     const [nutritionInfo, setNutritionInfo] = useState({});
+    const [foodPreference, setFoodPreference] = useState([]);
     const [newInfoAvailable, setNewInfoAvailable] = useState(false);
 
     const videoConstraints = {
-        width: 1280,
-        height: 720,
+        width: 1920,
+        height: 1080,
         facingMode: "user"
     };
 
     const commands = [
         {
-            command: 'Empieza la detección',
-            callback: () => {
-                setIsDetectionActive(true);
-                setIsMenuOpen(true);
-            }
+            command: 'Empezar',
+            callback: () => handleGetUserInfo()
         },
         {
-            command: 'Detén la detección',
+            command: 'Detener',
             callback: () => setIsDetectionActive(false)
         },
         {
-            command: 'Abre el menú',
+            command: 'Abrir menú',
             callback: () => setIsMenuOpen(true)
         },
         {
-            command: 'Cierra el menú',
+            command: 'Cerrar menú',
             callback: () => setIsMenuOpen(false)
         },
         {
@@ -54,10 +56,47 @@ const Camera = () => {
             callback: () => fetchNutritionAndRecipes()
         },
         {
-            command: 'Dame recetas',
+          command: 'Agregar favorito',
+          callback: () => handleAddFavoriteRecipe()
+        },
+        {
+            command: 'Mostrar recetas',
             callback: () => {
                 setLoaded(true);
             }
+        },
+        {
+          command: 'Siguiente receta',
+          callback: () => nextRecipe()
+        },
+        {
+            command: 'Anterior receta',
+            callback: () => previousRecipe()
+        },
+        {
+            command: 'Mi nombre es *',
+            callback: (name) => {
+                setName(name);
+                document.getElementById('dobInput').focus(); // Enfoca el siguiente input
+            }
+        },
+        {
+            command: 'Mi fecha de nacimiento es *',
+            callback: (dob) => {
+                setDob(dob);
+                document.getElementById('foodPreferenceInput').focus(); // Enfoca el siguiente input
+            }
+        },
+        {
+            command: 'Mis preferencias alimentarias son *',
+            callback: (preference) => {
+                const preferenceArray = preference.split(',');
+                setFoodPreference(preferenceArray);
+            }
+        },
+        {
+            command: 'Enviar',
+            callback: () => handleSaveUserInfo()
         }
     ];
 
@@ -96,7 +135,9 @@ const Camera = () => {
         setLoading(true);
         setLoaded(false);
         setNewInfoAvailable(false);
+
         const ingredients = detections.map(detection => detection.name).join(', ');
+        const nutritionalInfo = userInfo.preferred_cuisines.split(' ');
         try {
             const response = await axios.post('https://api.openai.com/v1/chat/completions', {
                 model: "gpt-3.5-turbo",
@@ -107,18 +148,18 @@ const Camera = () => {
                     },
                     {
                         role: "user",
-                        content: `Dame la información nutricional (calorías, fibra, calcio) y tres recetas usando los siguientes ingredientes: ${ingredients}. La respuesta debe estar en formato JSON y estructurada de la siguiente manera:
+                        content: `Dame la información nutricional: ${nutritionalInfo.join(',')}. También tres recetas usando los siguientes ingredientes: ${ingredients}. La respuesta debe estar estructurada de la siguiente manera:
                         {
                             "nutritional_info": {
-                                "ingrediente1": {
-                                    "calorias": "X kcal",
-                                    "fibra": "X g",
-                                    "calcio": "X mg"
+                                "Ingrediente1": {
+                                    "nutritionalInformation1": "X y",
+                                    "nutritionalInformation2": "X y",
+                                    "nutritionalInformation3": "X y"
                                 },
-                                "ingrediente2": {
-                                    "calorias": "X kcal",
-                                    "fibra": "X g",
-                                    "calcio": "X mg"
+                                "Ingrediente2": {
+                                    "nutritionalInformation1": "X y",
+                                    "nutritionalInformation2": "X y",
+                                    "nutritionalInformation3": "X y"
                                 }
                             },
                             "recipes": [
@@ -156,7 +197,8 @@ const Camera = () => {
                 ...detection,
                 nutrition: nutritional_info[detection.name] || { calorias: 'No disponible', fibra: 'No disponible', calcio: 'No disponible' }
             }));
-
+            console.log('response data from api: ', response.data);
+            console.log('response data for web: ', responseData);
             setNutritionInfo(nutritional_info);
             setDetections(updatedDetections);
             setRecipes(recipes);
@@ -182,14 +224,65 @@ const Camera = () => {
         setShowPreparation(!showPreparation);
     };
 
+    const handleGetUserInfo = async () => {
+        try {
+            const response = await axios.get('http://127.0.0.1:8000/api/get-all-users/');
+            if (response.data.length === 0) {
+                setShowUserModal(true);
+            } else {
+                const rv2 = await axios.get('http://127.0.0.1:8000/api/get-user-profile/35/');
+                setUserInfo(rv2.data);
+                setIsDetectionActive(true);
+                setIsMenuOpen(true);
+            }
+        }catch (e) {
+            console.log('Error showing user: ', e);
+        }
+    }
+
+    const handleSaveUserInfo = async () => {
+        try {
+            const response = await axios.post('http://127.0.0.1:8000/api/create-user/', {
+                first_name: name,
+                birth_date: dob,
+                preferred_cuisines: foodPreference.join(', ')
+            });
+            setUserInfo(response.data);
+
+            setShowUserModal(false);
+        } catch (error) {
+            console.error("Error saving user info:", error);
+        }
+
+
+
+    };
+
+    const handleAddFavoriteRecipe = async () => {
+        try {
+            await axios.post('http://127.0.0.1:8000/api/create-favorite-recipe/', {
+                user_id: userInfo.id,
+                title: recipes[currentRecipeIndex].title,
+                ingredients: recipes[currentRecipeIndex].ingredients,
+                preparation: recipes[currentRecipeIndex].preparation
+            });
+            alert('Receta guardada como favorita');
+        } catch (error) {
+            console.error("Error saving favorite recipe:", error);
+        }
+    };
+
     useEffect(() => {
-        const interval = setInterval(capture, 1000); // Captura cada 1 segundo
+        const interval = setInterval(capture, 500);
+        console.log('detections are: ', detections)// Captura cada 1 segundo
+        console.log('food preference: ', userInfo)
         return () => clearInterval(interval);
     }, [capture]);
 
     useEffect(() => {
-        const existingElements = document.querySelectorAll('.detection, .detection-info, .detection-name, .detection-ring');
+        const existingElements = document.querySelectorAll('.detection, .detection-info, .detection-name, .detection-name-top, .detection-name-bottom');
         existingElements.forEach(element => element.remove());
+
 
         detections.forEach((detection, index) => {
             const { x1, y1, x2, y2 } = detection.coordinates;
@@ -198,7 +291,7 @@ const Camera = () => {
             const width = x2 - x1;
             const height = y2 - y1;
             const radius = Math.max(width, height) / 2;
-            const ringRadius = radius + 20;
+            const ringRadius = radius + 50;
 
             const svgContainer = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
             svgContainer.setAttribute('class', 'detection');
@@ -209,40 +302,67 @@ const Camera = () => {
             svgContainer.innerHTML = `
             <defs>
                 <mask id="mask-${index}">
-                    <rect x="0" y="0" width="${ringRadius * 2}" height="${ringRadius * 2}" fill="white"/>
+                    <rect x="0" y="0" width="${ringRadius * 10}" height="${ringRadius * 2}" fill="white"/>
                     <circle cx="${ringRadius}" cy="${ringRadius}" r="${radius}" fill="black" />
                 </mask>
             </defs>
-            <circle cx="${ringRadius}" cy="${ringRadius}" r="${ringRadius}" fill="rgba(255, 165, 0, 0.5)" mask="url(#mask-${index})" />
+            <circle cx="${ringRadius}" cy="${ringRadius}" r="${ringRadius}" fill="rgba(0, 0, 0, 0.5)" mask="url(#mask-${index})" />
         `;
 
             document.querySelector('.camera-container').appendChild(svgContainer);
 
-            const textPath = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            textPath.setAttribute('class', 'detection-name');
-            textPath.setAttribute('width', `${ringRadius * 2}`);
-            textPath.setAttribute('height', `${ringRadius * 2}`);
-            textPath.setAttribute('style', `position: absolute; left: ${centerX - ringRadius}px; top: ${centerY - ringRadius - 5}px; pointer-events: none; z-index: 3;`);
+            // Crear el texto superior
+            const textTopPath = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            textTopPath.setAttribute('class', 'detection-name-top');
+            textTopPath.setAttribute('width', `${ringRadius * 2}`);
+            textTopPath.setAttribute('height', `${ringRadius * 2}`);
+            textTopPath.setAttribute('style', `position: absolute; left: ${centerX - ringRadius}px; top: ${centerY - ringRadius - 17}px; pointer-events: none; z-index: 3;`);
 
-            textPath.innerHTML = `
+            textTopPath.innerHTML = `
             <defs>
-                <path id="textPath-${index}" d="M ${ringRadius},${ringRadius} m -${radius},0 a ${radius},${radius} 0 1,1 ${radius * 2},0 a ${radius},${radius} 0 1,1 -${radius * 2},0" />
+                <path id="textTopPath-${index}" d="M ${ringRadius},${ringRadius} m -${radius},0 a ${radius},${radius} 0 1,1 ${radius * 2},0" />
             </defs>
-            <text fill="black" font-size="25" font-weight="bold">
-                <textPath xlink:href="#textPath-${index}" startOffset="50%" text-anchor="middle">
+            <text fill="#000000" font-size="50" font-weight="bold">
+                <textPath xlink:href="#textTopPath-${index}" startOffset="50%" text-anchor="middle">
+                    Tamaño de porción 100g
+                </textPath>
+            </text>
+        `;
+
+            document.querySelector('.camera-container').appendChild(textTopPath);
+
+            // Crear el texto inferior
+            const textBottomPath = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            textBottomPath.setAttribute('class', 'detection-name-bottom');
+            textBottomPath.setAttribute('width', `${ringRadius * 2}`);
+            textBottomPath.setAttribute('height', `${ringRadius * 2}`);
+            textBottomPath.setAttribute('style', `position: absolute; left: ${centerX - ringRadius}px; top: ${centerY - ringRadius + 40 }px; pointer-events: none; z-index: 3;`);
+
+            textBottomPath.innerHTML = `
+            <defs>
+                <path id="textBottomPath-${index}" d="M ${ringRadius},${ringRadius} m -${radius},0 a ${radius},${radius} 0 1,0 ${radius * 2},0" />
+            </defs>
+            <text fill="#000000" font-size="50" font-weight="bold">
+                <textPath xlink:href="#textBottomPath-${index}" startOffset="50%" text-anchor="middle">
                     ${detection.name}
                 </textPath>
             </text>
         `;
-            document.querySelector('.camera-container').appendChild(textPath);
+
+            document.querySelector('.camera-container').appendChild(textBottomPath);
 
             if (nutritionInfo[detection.name]) {
+
                 const nutritionData = nutritionInfo[detection.name];
-                const nutritionInfoElements = [
-                    { label: 'Calorías', value: nutritionData.calorias, angle: -45 },
-                    { label: 'Fibra', value: nutritionData.fibra, angle: 0 },
-                    { label: 'Calcio', value: nutritionData.calcio, angle: 45 }
-                ];
+                console.log('its printing nutrition info: ', nutritionData)
+                const nutritionInfoElements = Object.entries(nutritionData)
+                    .map(([key, value], index, array) => ({
+                        label: key,
+                        value: value,
+                        // Puedes ajustar el ángulo aquí si lo deseas, por ejemplo, distribuyendolos en un círculo
+                        angle: (360 / Object.keys(nutritionData).length) * Object.keys(nutritionData).indexOf(key),
+                    }));
+
 
                 nutritionInfoElements.forEach(info => {
                     const angle = info.angle * (Math.PI / 180);
@@ -271,7 +391,6 @@ const Camera = () => {
                     document.querySelector('.camera-container').appendChild(detectionInfo);
                 });
             }
-
             gsap.to(svgContainer, {
                 x: 0,
                 y: 0,
@@ -280,7 +399,10 @@ const Camera = () => {
         });
     }, [detections, nutritionInfo]);
 
+
     useEffect(() => {
+        console.log('nutrition info: ', nutritionInfo);
+        console.log('')
         if (!SpeechRecognition.browserSupportsSpeechRecognition()) {
             console.error("Este navegador no soporta reconocimiento de voz.");
         } else {
@@ -328,6 +450,11 @@ const Camera = () => {
             {isMenuOpen && (
                 <div ref={menuRef} style={menuStyle}>
                     <h2 style={menuTitleStyle}>Menú</h2>
+                    {userInfo ? (
+                        <p>Bienvenido, {userInfo.first_name}</p>
+                    ) : (
+                        <p>No se ha registrado usuario.</p>
+                    )}
                     <ul style={detectionListStyle}>
                         {detections.map((detection, index) => (
                             <li key={index} style={detectionItemStyle}>
@@ -341,10 +468,15 @@ const Camera = () => {
                             Cargando...
                         </div>
                     )}
-                    {newInfoAvailable && (
+                    {newInfoAvailable && detections.length > 0 && (
                         <div style={loadingStyle}>
                             <FaCheckCircle style={{ marginRight: '10px' }} />
                             Hay nueva información disponible
+                        </div>
+                    )}
+                    {detections.length == 0 && (
+                        <div style={loadingStyle}>
+                            Realiza nuevas detecciones :)
                         </div>
                     )}
                     {showNutrition && (
@@ -355,6 +487,10 @@ const Camera = () => {
                     )}
                     {loaded && (
                         <div ref={recipeRef} style={recipeContainerStyle}>
+                            <FaHeart
+                                className="favorite-icon"
+                                onClick={() => handleAddFavoriteRecipe(recipes[currentRecipeIndex])}
+                            />
                             <h3 style={recipeTitleStyle}>{recipes[currentRecipeIndex].title}</h3>
                             <p><strong>Ingredientes:</strong> {recipes[currentRecipeIndex].ingredients}</p>
                             {showPreparation && (
@@ -371,6 +507,37 @@ const Camera = () => {
                     )}
                 </div>
             )}
+            {showUserModal && (
+                <div className="modal-container" >
+                    <div className={'modal-content'}>
+                        <h2>Ingrese su información</h2>
+                        <input
+                            id="nameInput"
+                            type="text"
+                            value={name}
+                            className="modal-input"
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder="Nombre completo"
+                        />
+                        <input
+                            id="dobInput"
+                            type="date"
+                            value={dob}
+                            className="modal-input"
+                            onChange={(e) => setDob(e.target.value)}
+                            placeholder="Fecha de nacimiento"
+                        />
+                        <input
+                            type="text"
+                            placeholder="Preferencias alimentarias"
+                            value={foodPreference}
+                            onChange={(e) => setFoodPreference(e.target.value.split(',').map(item => item.trim()))}
+                            className="modal-input"
+                            id="foodPreferenceInput"
+                        />
+                    </div>
+                </div>
+            )}
             <p style={transcriptStyle}>{transcript}</p>
         </div>
     );
@@ -381,8 +548,8 @@ const menuStyle = {
     top: '50px',
     right: '50px',
     width: '350px',
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
-    color: 'white',
+    backgroundColor: 'rgba(255, 102, 0, 0.95)', // Fondo anaranjado más vibrante
+    color: 'white', // Color de texto blanco para contraste
     padding: '20px',
     borderRadius: '10px',
     zIndex: '3',
@@ -396,33 +563,37 @@ const menuTitleStyle = {
     margin: '0 0 10px',
     fontSize: '24px',
     borderBottom: '2px solid white',
-    paddingBottom: '5px'
+    paddingBottom: '5px',
+    color: 'white' // Color de texto blanco para el título
 };
 
 const detectionListStyle = {
     listStyleType: 'none',
     padding: '0',
-    margin: '0'
+    margin: '0',
+    color: 'white' // Color de texto blanco para los items de detección
 };
 
 const detectionItemStyle = {
     marginBottom: '10px',
     fontSize: '18px',
     lineHeight: '1.5',
-    border: '1px solid #4CAF50',
+    border: '1px solid rgba(255, 255, 255, 0.5)', // Borde blanco translúcido para mantener coherencia
     borderRadius: '5px',
     padding: '5px 10px',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)'
+    backgroundColor: 'rgba(255, 255, 255, 0.15)', // Fondo translúcido para detecciones
+    color: 'white' // Color de texto blanco
 };
 
 const recipeContainerStyle = {
     marginTop: '20px',
     fontSize: '16px',
     lineHeight: '1.5',
-    border: '1px solid #4CAF50',
+    border: '1px solid rgba(255, 255, 255, 0.5)', // Borde blanco translúcido para mantener coherencia
     borderRadius: '10px',
     padding: '10px',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)', // Fondo translúcido
+    color: 'white', // Texto blanco
     opacity: 0
 };
 
@@ -430,7 +601,8 @@ const recipeTitleStyle = {
     margin: '0 0 10px',
     fontSize: '20px',
     borderBottom: '1px solid white',
-    paddingBottom: '5px'
+    paddingBottom: '5px',
+    color: 'white' // Texto blanco para el título de la receta
 };
 
 const buttonContainerStyle = {
@@ -440,7 +612,7 @@ const buttonContainerStyle = {
 };
 
 const buttonStyle = {
-    backgroundColor: '#4CAF50',
+    backgroundColor: 'rgba(255, 140, 0, 0.8)', // Fondo anaranjado translúcido
     color: 'white',
     border: 'none',
     borderRadius: '5px',
@@ -448,6 +620,7 @@ const buttonStyle = {
     cursor: 'pointer',
     fontSize: '16px',
     transition: 'background-color 0.3s',
+    outline: 'none'
 };
 
 const loadingStyle = {
@@ -455,7 +628,10 @@ const loadingStyle = {
     alignItems: 'center',
     fontSize: '16px',
     margin: '10px 0',
-    color: 'yellow'
+    color: 'yellow', // Mantener color amarillo para los estados de carga
+    backgroundColor: 'rgba(255, 255, 255, 0.1)', // Fondo translúcido para mayor contraste
+    padding: '5px',
+    borderRadius: '5px'
 };
 
 const transcriptStyle = {

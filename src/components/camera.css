@@ -1,75 +1,89 @@
-.camera-container {
-    position: relative;
-    overflow: hidden;
-    width: 100%;
-    height: 100vh;
-    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-}
-
-.webcam {
-    width: 100%;
-    height: auto;
-    position: absolute;
-    z-index: 1;
-    border-radius: 10px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
-.overlay {
-    position: absolute;
+/* Agrega estos estilos globales */
+.modal-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(255, 255, 255, 0.1);
-    z-index: 2;
+    background-color: rgba(0, 0, 0, 0.5); /* Fondo semi-transparente */
+    z-index: 999; /* Para asegurarte que esté encima de otros elementos */
 }
 
-.listening-indicator {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background-color: rgba(0, 255, 0, 0.7);
-    padding: 5px 10px;
-    border-radius: 5px;
-    z-index: 3;
-    font-family: 'Arial', sans-serif;
-    font-weight: bold;
-    color: #fff;
-}
-
-.menu {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    background-color: rgba(255, 255, 255, 0.9);
+.modal-content {
+    background-color: white;
     padding: 20px;
     border-radius: 10px;
-    z-index: 3;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    font-family: 'Arial', sans-serif;
-    color: #333;
+    max-width: 500px; /* Ancho máximo del modal */
+    width: 100%;
+    text-align: center;
 }
 
-.menu h2 {
-    margin-top: 0;
-    font-size: 24px;
-    font-weight: bold;
-    color: #000;
-}
-
-.menu ul {
-    list-style: none;
-    padding: 0;
-}
-
-.menu li {
+.modal-input {
+    width: 100%;
+    padding: 10px;
     margin: 10px 0;
-    font-size: 18px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    font-size: 16px;
 }
 
-.menu p {
-    font-size: 18px;
-    font-style: italic;
-    color: #666;
+.modal-button {
+    padding: 10px 20px;
+    margin-top: 20px;
+    border: none;
+    background-color: #007bff;
+    color: white;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.modal-button:hover {
+    background-color: #0056b3;
+}
+.detection-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: absolute;
+    background-color: rgba(255, 255, 255, 0.8);
+    color: #333;
+    padding: 10px;
+    font-size: 14px;
+    font-style: normal;
+    font-weight: bold;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    white-space: nowrap;
+    z-index: 2;
+    transition: transform 0.3s ease-in-out;
+}
+
+.detection-info strong {
+    font-size: 16px;
+    color: #bbbbbb;
+}
+
+.detection-info span {
+    font-size: 12px;
+    color: #007bff;
+}
+
+.detection-name-top,
+.detection-name-bottom {
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    font-weight: bold;
+}
+
+.detection {
+    stroke: #FF5733; /* Cambia este color para que coincida con tu paleta */
+    stroke-width: 5;
+}
+
+svg text {
+    font-family: 'Arial', sans-serif;
+    fill: #FF5733;
 }
