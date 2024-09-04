@@ -27,6 +27,8 @@ const Camera = () => {
     const [nutritionInfo, setNutritionInfo] = useState({});
     const [foodPreference, setFoodPreference] = useState([]);
     const [newInfoAvailable, setNewInfoAvailable] = useState(false);
+    const [favoriteRecipes, setFavoriteRecipes] = useState([]);
+    const [showFavorites, setShowFavorites] = useState(false);
 
     const videoConstraints = {
         width: 1920,
@@ -97,6 +99,11 @@ const Camera = () => {
         {
             command: 'Enviar',
             callback: () => handleSaveUserInfo()
+        },
+        {
+            command: 'Mostrar mis recetas favoritas',
+            callback: () => fetchFavoriteRecipes()
+
         }
     ];
 
@@ -130,6 +137,22 @@ const Camera = () => {
             setIsRequestPending(false);
         }
     }, [webcamRef, isDetectionActive, isRequestPending, detections]);
+
+    const fetchFavoriteRecipes = async () => {
+        if (userInfo) {
+            setLoaded(false);
+            try {
+                const response = await axios.get(`http://127.0.0.1:8000/api/get-user-favorite-recipes/${userInfo.id}/`);
+                setFavoriteRecipes(response.data);
+            } catch (e) {
+                console.error("Error fetching favorite recipes:", e);
+            } finally {
+                setShowFavorites(true);
+            }
+        }
+
+
+    }
 
     const fetchNutritionAndRecipes = async () => {
         setLoading(true);
@@ -503,6 +526,18 @@ const Camera = () => {
                                 <button onClick={previousRecipe} style={buttonStyle}>Anterior</button>
                                 <button onClick={nextRecipe} style={buttonStyle}>Siguiente</button>
                             </div>
+                        </div>
+                    )}
+                    {showFavorites && favoriteRecipes.length > 0 && (
+                        <div style={menuTitleStyle}>
+                            <h3 style={menuStyle}>Mis Recetas Favoritas</h3>
+                            {favoriteRecipes.map((recipe, index) => (
+                                <div key={index} style={{ marginBottom: '20px' }}>
+                                    <h4>{recipe.title}</h4>
+                                    <p><strong>Ingredientes:</strong> {recipe.ingredients}</p>
+                                    <p><strong>Preparación:</strong> {recipe.preparation}</p>
+                                </div>
+                            ))}
                         </div>
                     )}
                 </div>
